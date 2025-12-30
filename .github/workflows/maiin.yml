@@ -1,44 +1,55 @@
-name: RDP (Self Hosted)
+name: RDP (Self Hosted Linux)
 
 on:
   workflow_dispatch:
 
 jobs:
   secure-rdp:
-    runs-on: [self-hosted, windows, x64]
-    timeout-minutes: 0   # بدون حد زمني
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 0
 
     steps:
-      - name: Enable RDP
-        shell: powershell
+      - name: Update system
+        shell: bash
         run: |
-          Set-ItemProperty `
-            -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-            -Name "fDenyTSConnections" -Value 0 -Force
+          sudo apt update -y
 
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+      - name: Install Desktop + XRDP
+        shell: bash
+        run: |
+          sudo apt install -y xfce4 xfce4-goodies xrdp
+          sudo systemctl enable xrdp
+          sudo systemctl restart xrdp
 
-          Restart-Service TermService -Force
+      - name: Configure XRDP session
+        shell: bash
+        run: |
+          echo "xfce4-session" > ~/.xsession
+          sudo sed -i.bak '/fi/a \
+startxfce4 \n' /etc/xrdp/startwm.sh
 
       - name: Create RDP User
-        shell: powershell
+        shell: bash
         run: |
-          $password = "Rdp@123456"
-          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+          USERNAME=rdp
+          PASSWORD='Rdp@123456'
 
-          if (-not (Get-LocalUser -Name "RDP" -ErrorAction SilentlyContinue)) {
-            New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires
-            Add-LocalGroupMember -Group "Administrators" -Member "RDP"
-            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
-          }
+          if ! id "$USERNAME" &>/dev/null; then
+            sudo useradd -m -s /bin/bash "$USERNAME"
+            echo "$USERNAME:$PASSWORD" | sudo chpasswd
+            sudo usermod -aG sudo "$USERNAME"
+          fi
 
-          Write-Host "User: RDP"
-          Write-Host "Password: $password"
+          echo "User: $USERNAME"
+          echo "Password: $PASSWORD"
+
+      - name: Open RDP Port
+        shell: bash
+        run: |
+          sudo ufw allow 3389/tcp || true
 
       - name: Keep Runner Alive
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "Self-hosted RDP is active"
-          while ($true) {
-            Start-Sleep 600
-          }
+          echo "Linux RDP (XRDP) is active"
+          while true; do sleep 600; done
