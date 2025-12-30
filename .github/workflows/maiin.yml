@@ -1,0 +1,44 @@
+name: RDP (Self Hosted)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-rdp:
+    runs-on: [self-hosted, windows, x64]
+    timeout-minutes: 0   # بدون حد زمني
+
+    steps:
+      - name: Enable RDP
+        shell: powershell
+        run: |
+          Set-ItemProperty `
+            -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name "fDenyTSConnections" -Value 0 -Force
+
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Restart-Service TermService -Force
+
+      - name: Create RDP User
+        shell: powershell
+        run: |
+          $password = "Rdp@123456"
+          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+
+          if (-not (Get-LocalUser -Name "RDP" -ErrorAction SilentlyContinue)) {
+            New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires
+            Add-LocalGroupMember -Group "Administrators" -Member "RDP"
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          }
+
+          Write-Host "User: RDP"
+          Write-Host "Password: $password"
+
+      - name: Keep Runner Alive
+        shell: powershell
+        run: |
+          Write-Host "Self-hosted RDP is active"
+          while ($true) {
+            Start-Sleep 600
+          }
