@@ -13,20 +13,20 @@ jobs:
         shell: bash
         run: |
           sudo apt update -y
+          sudo apt upgrade -y
 
-      - name: Install Desktop + XRDP
+      - name: Install Desktop Environment and XRDP
         shell: bash
         run: |
-          sudo apt install -y xfce4 xfce4-goodies xrdp
+          sudo apt install -y xfce4 xfce4-goodies xrdp dbus-x11
           sudo systemctl enable xrdp
           sudo systemctl restart xrdp
 
-      - name: Configure XRDP session
+      - name: Configure XRDP to use XFCE
         shell: bash
         run: |
-          echo "xfce4-session" > ~/.xsession
-          sudo sed -i.bak '/fi/a \
-startxfce4 \n' /etc/xrdp/startwm.sh
+          echo "xfce4-session" > /home/runner/.xsession
+          sudo sed -i '/^exec /c\exec startxfce4 &' /etc/xrdp/startwm.sh
 
       - name: Create RDP User
         shell: bash
@@ -34,22 +34,26 @@ startxfce4 \n' /etc/xrdp/startwm.sh
           USERNAME=rdp
           PASSWORD='Rdp@123456'
 
-          if ! id "$USERNAME" &>/dev/null; then
+          if ! id "$USERNAME" >/dev/null 2>&1; then
             sudo useradd -m -s /bin/bash "$USERNAME"
             echo "$USERNAME:$PASSWORD" | sudo chpasswd
             sudo usermod -aG sudo "$USERNAME"
           fi
 
-          echo "User: $USERNAME"
-          echo "Password: $PASSWORD"
+          echo "=============================="
+          echo "RDP USER: $USERNAME"
+          echo "RDP PASS: $PASSWORD"
+          echo "PORT    : 3389"
+          echo "=============================="
 
-      - name: Open RDP Port
+      - name: Allow RDP Port
         shell: bash
         run: |
           sudo ufw allow 3389/tcp || true
+          sudo ufw reload || true
 
       - name: Keep Runner Alive
         shell: bash
         run: |
-          echo "Linux RDP (XRDP) is active"
+          echo "XRDP is running and ready"
           while true; do sleep 600; done
